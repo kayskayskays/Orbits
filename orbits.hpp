@@ -8,14 +8,13 @@ struct StarObject {
     float radius = 15.0f;
     float mass = 0.0f;
     float gravity = 0.0f;
-    sf::Color color = sf::Color::Red;
+    sf::Color color{255, 117, 24};
 
     StarObject() = default;
-    StarObject(sf::Vector2f position_, float radius_, float mass_, float gravity_)
+    StarObject(sf::Vector2f position_, float radius_, float mass_)
         : position {position_}
         , radius {radius_}
         , mass {mass_}
-        , gravity {gravity_}
     {}
 };
 
@@ -54,8 +53,8 @@ class Solver {
 public:
     Solver() = default;
 
-    StarObject& addStarObject(sf::Vector2f position, float radius, float gravity, float mass) {
-        return stars.emplace_back(position, radius, mass, gravity);
+    StarObject& addStarObject(sf::Vector2f position, float radius, float mass) {
+        return stars.emplace_back(position, radius, mass);
     }
 
     MoonObject& addMoonObject(sf::Vector2f position, float radius) {
@@ -66,7 +65,8 @@ public:
         time += frame_dt;
         const float step_dt = getStepDt();
         for (uint32_t i{sub_steps}; i--;) {
-
+            applyGravity();
+            updateMoons(step_dt);
         }
     }
 
@@ -83,6 +83,16 @@ public:
         return frame_dt / static_cast<float>(sub_steps);
     }
 
+    [[nodiscard]]
+    std::vector<StarObject> getStars() const {
+        return stars;
+    }
+
+    [[nodiscard]]
+    std::vector<MoonObject> getMoons() const {
+        return moons;
+    }
+
 private:
     float time = 0.0f;
     float frame_dt = 0.0f;
@@ -90,14 +100,24 @@ private:
     std::vector<StarObject> stars;
     std::vector<MoonObject> moons;
 
+    void applyGravity() {
 
-    static float findGravitationalAcceleration(MoonObject& moon, StarObject& star) {
-        const double newton_G = 6.67384e-11;
-        sf::Vector2f displacement = moon.position - star.position;
-        float distance = sqrt(displacement.x * displacement.x + displacement.y * displacement.y);
-        return static_cast<float>(newton_G * star.mass / (distance * distance));
+        sf::Vector2f gravity;
+
+        for (auto& moon : moons) {
+            gravity = findGravityVector(moon);
+            moon.accelerate(gravity);
+        }
+
     }
 
+    static float findGravitationalAcceleration(MoonObject& moon, StarObject& star) {
+        sf::Vector2f displacement = star.position - moon.position;
+        float distance = sqrt(displacement.x * displacement.x + displacement.y * displacement.y);
+        return static_cast<float>(star.mass / (distance * distance));
+    }
+
+    [[nodiscard]]
     sf::Vector2f findGravityVector(MoonObject& moon) {
 
         sf::Vector2f direction;
@@ -106,13 +126,20 @@ private:
         float magnitude;
 
         for (auto& star : stars) {
-            displacement = moon.position - star.position;
+            displacement = star.position - moon.position;
             distance = sqrt(displacement.x * displacement.x + displacement.y * displacement.y);
             magnitude = findGravitationalAcceleration(moon, star);
             direction +=  displacement * magnitude / distance;
         }
 
         return direction;
+    }
+
+    void updateMoons(float dt) {
+
+        for (auto& moon : moons) {
+            moon.update(dt);
+        }
 
     }
 
